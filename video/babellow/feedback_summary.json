@@ -1,0 +1,151 @@
+[
+  {
+    "SessionID": "c51f71e1-749a-4f9b-9f55-xxxxxx",
+    "UserID": "test_user_001",
+    "ExerciseName": "ballow"
+  },
+  {
+    "range": "Frame 0~6",
+    "joints": [
+      {
+        "name": "Right Elbow",
+        "error_detail": "severely deviated to the left, upward, backward"
+      },
+      {
+        "name": "Right Hip",
+        "error_detail": "severely deviated to the left, upward, forward"
+      },
+      {
+        "name": "Left Ankle",
+        "error_detail": "severely deviated to the right, upward, backward"
+      },
+      {
+        "name": "Right Ankle",
+        "error_detail": "severely deviated to the right, upward, backward"
+      }
+    ],
+    "comment": "Multiple joint deviations detected during this interval."
+  },
+  {
+    "range": "Frame 9~18",
+    "joints": [
+      {
+        "name": "Left Ankle",
+        "error_detail": "severely deviated to the right, upward, backward"
+      }
+    ],
+    "comment": "Multiple joint deviations detected during this interval."
+  },
+  {
+    "range": "Frame 41~48",
+    "joints": [
+      {
+        "name": "Left Ankle",
+        "error_detail": "severely deviated to the right, upward, backward"
+      }
+    ],
+    "comment": "Multiple joint deviations detected during this interval."
+  },
+  {
+    "range": "Frame 54~68",
+    "joints": [
+      {
+        "name": "Right Shoulder",
+        "error_detail": "severely deviated to the left, upward"
+      }
+    ],
+    "comment": "Multiple joint deviations detected during this interval."
+  },
+  {
+    "range": "Frame 70~76",
+    "joints": [
+      {
+        "name": "Right Ankle",
+        "error_detail": "severely deviated to the right, upward, backward"
+      }
+    ],
+    "comment": "Multiple joint deviations detected during this interval."
+  },
+  {
+    "range": "Frame 84~94",
+    "joints": [
+      {
+        "name": "Right Elbow",
+        "error_detail": "severely deviated to the left, upward, forward"
+      }
+    ],
+    "comment": "Multiple joint deviations detected during this interval."
+  },
+  {
+    "range": "Frame 172~174",
+    "joints": [
+      {
+        "name": "Right Ankle",
+        "error_detail": "severely deviated to the right, upward, backward"
+      }
+    ],
+    "comment": "Multiple joint deviations detected during this interval."
+  },
+  {
+    "range": "Frame 228~234",
+    "joints": [
+      {
+        "name": "Left Elbow",
+        "error_detail": "severely deviated to the left, upward, forward"
+      },
+      {
+        "name": "Left Hip",
+        "error_detail": "severely deviated to the left, upward, forward"
+      },
+      {
+        "name": "Left Shoulder",
+        "error_detail": "severely deviated upward, forward"
+      },
+      {
+        "name": "Right Shoulder",
+        "error_detail": "severely deviated to the right, upward, forward"
+      }
+    ],
+    "comment": "Multiple joint deviations detected during this interval."
+  },
+  {
+    "range": "Frame 239~249",
+    "joints": [
+      {
+        "name": "Left Elbow",
+        "error_detail": "severely deviated to the left, upward, forward"
+      }
+    ],
+    "comment": "Multiple joint deviations detected during this interval."
+  },
+  {
+    "range": "Frame 284~310",
+    "joints": [
+      {
+        "name": "Left Ankle",
+        "error_detail": "severely deviated to the right, upward, backward"
+      },
+      {
+        "name": "Left Shoulder",
+        "error_detail": "severely deviated upward, forward"
+      },
+      {
+        "name": "Left Elbow",
+        "error_detail": "severely deviated upward, forward"
+      },
+      {
+        "name": "Left Hip",
+        "error_detail": "severely deviated to the left, upward, forward"
+      },
+      {
+        "name": "Right Elbow",
+        "error_detail": "severely deviated to the left, upward, forward"
+      },
+      {
+        "name": "Right Hip",
+        "error_detail": "severely deviated upward, forward"
+      }
+    ],
+    "comment": "Multiple joint deviations detected during this interval."
+  }
+]

@@ -1,0 +1,60 @@
+🧠 You are a movement feedback coach. The user is performing 'ballow'.
+
+Exercise Description: This exercise strengthens the biceps...
+
+Ideal Form:
+• Keep your elbows fixed at your sides throughout the movement.
+• Avoid moving your shoulders; they should remain stable.
+• Maintain a neutral wrist position without bending.
+• The elbow flexion angle should range between approximately 50 and 140 degrees.
+
+Detected Deviations:
+
+[📍 Frame 0~6]
+- Right Elbow: severely deviated to the left, upward, backward
+- Right Hip: severely deviated to the left, upward, forward
+- Left Ankle: severely deviated to the right, upward, backward
+- Right Ankle: severely deviated to the right, upward, backward
+
+[📍 Frame 9~18]
+- Left Ankle: severely deviated to the right, upward, backward
+
+[📍 Frame 41~48]
+- Left Ankle: severely deviated to the right, upward, backward
+
+[📍 Frame 54~68]
+- Right Shoulder: severely deviated to the left, upward
+
+[📍 Frame 70~76]
+- Right Ankle: severely deviated to the right, upward, backward
+
+[📍 Frame 84~94]
+- Right Elbow: severely deviated to the left, upward, forward
+
+[📍 Frame 172~174]
+- Right Ankle: severely deviated to the right, upward, backward
+
+[📍 Frame 228~234]
+- Left Elbow: severely deviated to the left, upward, forward
+- Left Hip: severely deviated to the left, upward, forward
+- Left Shoulder: severely deviated upward, forward
+- Right Shoulder: severely deviated to the right, upward, forward
+
+[📍 Frame 239~249]
+- Left Elbow: severely deviated to the left, upward, forward
+
+[📍 Frame 284~310]
+- Left Ankle: severely deviated to the right, upward, backward
+- Left Shoulder: severely deviated upward, forward
+- Left Elbow: severely deviated upward, forward
+- Left Hip: severely deviated to the left, upward, forward
+- Right Elbow: severely deviated to the left, upward, forward
+- Right Hip: severely deviated upward, forward
+
+
+Based on the above, please explain in three parts:
+1. What is incorrect with the user's form
+2. Why this might be happening
+3. How to correct it (include light stretches or drills if helpful)
+
+Avoid technical jargon. Make your explanation simple and actionable for beginners.
