@@ -17,6 +17,7 @@ import matplotlib
 import matplotlib.font_manager as fm
 from scipy.interpolate import interp1d
 import json
+import mediapipe as mp
 plt.rcParams['font.family'] = 'DejaVu Sans'
 matplotlib.rcParams['axes.unicode_minus'] = False
 font_path = "C:/Windows/Fonts/malgun.ttf"
@@ -842,6 +843,28 @@ def summarize_joint_errors_for_feedback(
 
     return result
 
+def get_user_center_from_frame(frame: np.ndarray) -> tuple:
+    """
+    Extracts the user's pelvis center from a frame using MediaPipe Pose.
+    Returns (x, y) normalized coordinates or None if detection fails.
+    """
+    mp_pose = mp.solutions.pose
+    with mp_pose.Pose(static_image_mode=True) as pose:
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = pose.process(rgb_frame)
+
+        if not results.pose_landmarks:
+            return None
+
+        landmarks = results.pose_landmarks.landmark
+        if len(landmarks) < 25:
+            return None
+
+        # landmarks 23: left_hip, 24: right_hip
+        center_x = (landmarks[23].x + landmarks[24].x) / 2
+        center_y = (landmarks[23].y + landmarks[24].y) / 2
+
+        return (center_x, center_y)
 
 def generate_feedback_overlay_images(
     video_path: str,
@@ -852,7 +875,8 @@ def generate_feedback_overlay_images(
 ):
     os.makedirs(os.path.join(output_dir, "frame_feedback"), exist_ok=True)
     key_joints = [11,12,13,14,15,16,23,24,25,26,27,28,29,30]
-    connections = [(11,13),(13,15),(12,14),(14,16),(23,25),(25,27),(27,29),(24,26),(26,28),(28,30)]
+    connections = [(11,13),(13,15),(12,14),(14,16),(23,25),
+                   (25,27),(27,29),(24,26),(26,28),(28,30)]
 
     with open(feedback_json_path, "r", encoding="utf-8") as f:
         feedback_data = json.load(f)
@@ -861,11 +885,9 @@ def generate_feedback_overlay_images(
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
     for item in feedback_data:
-        # ✅ Skip metadata entries
         if "range" not in item:
             continue
 
-        # 1. 프레임 구간 확인
         start, end = map(int, item["range"].replace("Frame ", "").split("~"))
         if (end - start + 1) < 20:
             continue
@@ -874,7 +896,6 @@ def generate_feedback_overlay_images(
         if target_frame >= total_frames:
             continue
 
-        # 2. 프레임 캡처
         cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
         success, frame = cap.read()
         if not success:
@@ -882,7 +903,20 @@ def generate_feedback_overlay_images(
             continue
         h, w = frame.shape[:2]
 
-        # 3. 실제 & 이상 관절 좌표 추출
+        # ✅ 사용자 중심 좌표 구하기
+        user_center = get_user_center_from_frame(frame)
+        if user_center is None:
+            print(f"❌ Failed to detect user center in Frame {target_frame}")
+            continue
+
+        user_center_x, user_center_y = user_center
+        offset_x = int((1.0 - user_center_x) * w)
+        offset_y = h // 2 - int(user_center_y * h)
+        print(f"{offset_x},{offset_y}")
+
+        def to_pixel_coords(x, y):
+            return (int(x * w + offset_x), int(y * h + offset_y))
+
         actual_points = []
         ideal_points = []
 
@@ -890,42 +924,45 @@ def generate_feedback_overlay_images(
             try:
                 ax = actual_df.loc[target_frame, f"landmark_{j}_x"]
                 ay = actual_df.loc[target_frame, f"landmark_{j}_y"]
-                actual_pt = (int(ax * w), int(ay * h))
+                actual_points.append((ax, ay))
             except:
-                actual_pt = (0, 0)
-            actual_points.append(actual_pt)
+                actual_points.append((0, 0))
 
             try:
                 angle = ideal_df.iloc[target_frame, i]
                 dx = 0.05 if j % 2 == 0 else -0.05
                 dy = -0.05
-                ideal_pt = (int((ax + dx * (angle / 180)) * w), int((ay + dy * (angle / 180)) * h))
+                ix = ax + dx * (angle / 180)
+                iy = ay + dy * (angle / 180)
+                ideal_points.append((ix, iy))
             except:
-                ideal_pt = (0, 0)
-            ideal_points.append(ideal_pt)
+                ideal_points.append((0, 0))
 
-        # 4. 시각화
+        actual_points_pixel = [to_pixel_coords(x, y) for (x, y) in actual_points]
+        ideal_points_pixel = [to_pixel_coords(x, y) for (x, y) in ideal_points]
+
         overlay = frame.copy()
 
-        # 실제 (초록)
+        # draw actual (green)
         for (i, j) in connections:
             i1 = key_joints.index(i)
             i2 = key_joints.index(j)
             if actual_points[i1] != (0,0) and actual_points[i2] != (0,0):
-                cv2.line(overlay, actual_points[i1], actual_points[i2], (0,255,0), 2)
-        for pt in actual_points:
+                cv2.line(overlay, actual_points_pixel[i1], actual_points_pixel[i2], (0,255,0), 2)
+        for pt in actual_points_pixel:
             if pt != (0,0): cv2.circle(overlay, pt, 4, (0,255,0), -1)
 
-        # 이상 (빨강)
+        # draw ideal (red)
         for (i, j) in connections:
             i1 = key_joints.index(i)
             i2 = key_joints.index(j)
             if ideal_points[i1] != (0,0) and ideal_points[i2] != (0,0):
-                cv2.line(overlay, ideal_points[i1], ideal_points[i2], (0,0,255), 2)
-        for pt in ideal_points:
+                cv2.line(overlay, ideal_points_pixel[i1], ideal_points_pixel[i2], (0,0,255), 2)
+        for pt in ideal_points_pixel:
             if pt != (0,0): cv2.circle(overlay, pt, 4, (0,0,255), -1)
 
-        cv2.putText(overlay, f"Frame {target_frame}", (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255,255,255), 2)
+        cv2.putText(overlay, f"Frame {target_frame}", (30, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255,255,255), 2)
 
         save_path = os.path.join(output_dir, "frame_feedback", f"frame_{target_frame}.png")
         cv2.imwrite(save_path, overlay)
@@ -1261,5 +1298,6 @@ def main():
             ideal_df=ideal_angles_df,
             output_dir=output_dir
         )
+        
 if __name__ == "__main__":
     main()
