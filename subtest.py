@@ -912,7 +912,7 @@ def generate_feedback_overlay_images(
         user_center_x, user_center_y = user_center
         offset_x = int((1.0 - user_center_x) * w)
         offset_y = h // 2 - int(user_center_y * h)
-        print(f"{offset_x},{offset_y}")
+        #print(f"{offset_x},{offset_y}")
 
         def to_pixel_coords(x, y):
             return (int(x * w + offset_x), int(y * h + offset_y))
@@ -964,9 +964,9 @@ def generate_feedback_overlay_images(
         cv2.putText(overlay, f"Frame {target_frame}", (30, 50),
                     cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255,255,255), 2)
 
-        save_path = os.path.join(output_dir, "frame_feedback", f"frame_{target_frame}.png")
+        save_path = os.path.join(output_dir)
         cv2.imwrite(save_path, overlay)
-        print(f"✅ Saved: {save_path}")
+        #print(f"✅ Saved: {save_path}")
 
     cap.release()
 
@@ -1032,8 +1032,8 @@ def main():
     sub_exercise = f"{exercise_name}v2"
 
     video_filename = os.path.splitext(os.path.basename(video_path))[0]
-    csv_path = f"{output_dir}/{video_filename}.csv"
-    os.makedirs(output_dir, exist_ok=True)
+    csv_path = f"{temp_path}/{video_filename}.csv"
+    os.makedirs(temp_path, exist_ok=True)
 
     extracted_csv = extract_landmarks(video_path, csv_path)
     print(f"🔍 extract_landmarks 결과: {extracted_csv}")
@@ -1141,7 +1141,7 @@ def main():
             logging.error(f"❌ 유사도 계산 오류: {str(e)}")
             total_similarity.append(0)
 
-        output_path = os.path.join(output_dir, f"babellow_trajectory_{i+1}.png")
+        output_path = os.path.join(temp_path, f"babellow_trajectory_{i+1}.png")
         plot_trajectory_comparison(
             actual_segment_angles,
             generated_ideal_points,
@@ -1260,11 +1260,12 @@ def main():
             user_id,
             exercise_name
         )
-        json_path = os.path.join(output_dir, "feedback_summary.json")
+        json_path = os.path.join(temp_path, "feedback_summary.json")
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(feedback_summary, f, ensure_ascii=False, indent=2)
 
-        print(f"\n✅ 피드백 요약 JSON 저장 완료: {json_path}")
+        print(json.dumps(feedback_summary))
+        #print(f"\n✅ 피드백 요약 JSON 저장 완료: {json_path}")
 
         feedback_data = [{
             "SessionID": session_id,
@@ -1283,17 +1284,17 @@ def main():
         prompt = build_gpt_prompt_from_summary(feedback_data)
 
         # 파일로 저장해도 OK
-        gpt_prompt_path = os.path.join(output_dir, "gpt_prompt.json")
+        gpt_prompt_path = os.path.join(temp_path, "gpt_prompt.json")
         with open(gpt_prompt_path, "w", encoding="utf-8") as f:
             json.dump({ "prompt": prompt }, f, ensure_ascii=False, indent=2)
 
-        with open(os.path.join(output_dir, "gpt_prompt.txt"), "w", encoding="utf-8") as f:
+        with open(os.path.join(temp_path, "gpt_prompt.txt"), "w", encoding="utf-8") as f:
             f.write(prompt)
 
-        print(f"✅ GPT 프롬프트 JSON 저장 완료: {gpt_prompt_path}")
+        #print(f"✅ GPT 프롬프트 JSON 저장 완료: {gpt_prompt_path}")
         generate_feedback_overlay_images(
             video_path=video_path,
-            feedback_json_path=f"{output_dir}/feedback_summary.json",
+            feedback_json_path=f"{temp_path}/feedback_summary.json",
             actual_df=actual_landmark_df,
             ideal_df=ideal_angles_df,
             output_dir=output_dir
