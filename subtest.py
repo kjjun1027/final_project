@@ -18,6 +18,9 @@ import matplotlib.font_manager as fm
 from scipy.interpolate import interp1d
 import json
 import mediapipe as mp
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.detach(), encoding='utf-8')
 plt.rcParams['font.family'] = 'DejaVu Sans'
 matplotlib.rcParams['axes.unicode_minus'] = False
 font_path = "C:/Windows/Fonts/malgun.ttf"
@@ -230,13 +233,13 @@ def compare_phase_similarity(computed_phases, ideal_phases,
                         0.1 * acceleration_similarity +   # 가속도 유사도
                         0.1 * progress_similarity)         # 진행률 유사도
 
-    print(f"✅ 유사도: {total_similarity * 100:.2f}% (궤적 유사도: {dtw_similarity * 100:.2f}%, "
-          f"단계 정확도: {phase_accuracy * 100:.2f}%, "
-          f"전환 정확도: {transition_accuracy * 100:.2f}%, "
-          f"속도 유사도: {velocity_similarity * 100:.2f}%, "
-          f"가속도 유사도: {acceleration_similarity * 100:.2f}%, "
-          f"진행률 유사도: {progress_similarity * 100:.2f}%, "
-          f"단계 전환 변화량 유사도: {transition_score} ")
+#print(f"✅ 유사도: {total_similarity * 100:.2f}% (궤적 유사도: {dtw_similarity * 100:.2f}%, "
+#          f"단계 정확도: {phase_accuracy * 100:.2f}%, "
+#          f"전환 정확도: {transition_accuracy * 100:.2f}%, "
+#          f"속도 유사도: {velocity_similarity * 100:.2f}%, "
+#          f"가속도 유사도: {acceleration_similarity * 100:.2f}%, "
+#          f"진행률 유사도: {progress_similarity * 100:.2f}%, "
+#          f"단계 전환 변화량 유사도: {transition_score} ")
 
     return total_similarity * 100
 
@@ -386,7 +389,7 @@ def plot_trajectory_comparison(
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     plt.savefig(save_path)
     plt.close()
-    print(f"✅ 시각화 그래프 저장 완료: {save_path}")
+    #print(f"✅ 시각화 그래프 저장 완료: {save_path}")
 
 def estimate_phases(joint_angles):
     """
@@ -409,14 +412,14 @@ def save_ideal_angles_to_csv(ideal_trajectory, save_path="ideal_angles.csv"):
     - 각 프레임마다 10개 각도를 저장
     """
     if not ideal_trajectory or not isinstance(ideal_trajectory, list):
-        print("❌ 잘못된 입력입니다.")
+        #print("❌ 잘못된 입력입니다.")
         return
     
     df = pd.DataFrame(ideal_trajectory, columns=[
         f"angle_{i}" for i in range(len(ideal_trajectory[0]))
     ])
     df.to_csv(save_path, index=False)
-    print(f"✅ 이상 궤적 CSV 저장 완료: {save_path}")
+    #print(f"✅ 이상 궤적 CSV 저장 완료: {save_path}")
 
 def save_subset_landmarks_csv(input_csv_path, output_csv_path):
     """
@@ -436,7 +439,7 @@ def save_subset_landmarks_csv(input_csv_path, output_csv_path):
 
     subset_df = df[columns_to_keep]
     subset_df.to_csv(output_csv_path, index=False)
-    print(f"✅ 주요 관절만 추출하여 저장 완료: {output_csv_path}")
+    #print(f"✅ 주요 관절만 추출하여 저장 완료: {output_csv_path}")
 
 def draw_pose_from_points(img, points, offset_x=0, color=(0, 255, 0)):
     """
@@ -636,7 +639,7 @@ def extract_joint_angle_sequence(df, start, end):
             ]
             angle_seq.append(angles)
         except Exception as e:
-            print(f"❌ 관절 각도 추출 실패 (프레임 {i}): {e}")
+            #print(f"❌ 관절 각도 추출 실패 (프레임 {i}): {e}")
             continue
     return angle_seq
 
@@ -742,9 +745,6 @@ def summarize_joint_errors_for_feedback(
         joint_labels, 
         actual_points_per_frame, 
         ideal_points_per_frame, 
-        SessionID:str,
-        UserId:str,
-        ExercisesName:str,
         frame_group_thresh=3
     ):
 
@@ -799,12 +799,8 @@ def summarize_joint_errors_for_feedback(
         return f"{level} deviated {direction_str}"
 
     grouped_frames = group_frames(frame_flags.keys())
-    result = []
-    result.append({
-        "SessionID": f"{SessionID}",
-        "UserID": f"{UserId}",
-        "ExerciseName": f"{ExercisesName}",
-    })
+    results_list = []
+
     for group in grouped_frames:
         if len(group) < frame_group_thresh:
             continue
@@ -820,7 +816,7 @@ def summarize_joint_errors_for_feedback(
                 diff = actual - ideal
                 joint_directions[joint].append(diff)
 
-        summary = []
+        joints_feedback = []
         for joint, errors in joint_stats.items():
             if len(errors) >= frame_group_thresh:
                 avg_error = round(np.mean(errors), 4)
@@ -829,19 +825,19 @@ def summarize_joint_errors_for_feedback(
                 direction_str = get_direction_vector(avg_vec)
                 error_detail = format_error_detail(avg_error, direction_str)
 
-                summary.append({
+                joints_feedback.append({
                     "name": joint,
                     "error_detail": error_detail
                 })
 
-        if summary:
-            result.append({
+        if joints_feedback:
+            results_list.append({
                 "range": f"Frame {group[0]}~{group[-1]}",
-                "joints": summary,
+                "joints": joints_feedback,
                 "comment": "Multiple joint deviations detected during this interval."
             })
 
-    return result
+    return {"AnalysisResults": results_list}
 
 def get_user_center_from_frame(frame: np.ndarray) -> tuple:
     """
@@ -873,18 +869,24 @@ def generate_feedback_overlay_images(
     ideal_df: pd.DataFrame,
     output_dir: str
 ):
-    os.makedirs(os.path.join(output_dir, "frame_feedback"), exist_ok=True)
+
     key_joints = [11,12,13,14,15,16,23,24,25,26,27,28,29,30]
     connections = [(11,13),(13,15),(12,14),(14,16),(23,25),
                    (25,27),(27,29),(24,26),(26,28),(28,30)]
 
+    # ✅ Load as dictionary
     with open(feedback_json_path, "r", encoding="utf-8") as f:
         feedback_data = json.load(f)
+
+    # ✅ Ensure it's a dict and contains "AnalysisResults"
+    if not isinstance(feedback_data, dict) or "AnalysisResults" not in feedback_data:
+        #print("❌ Invalid feedback JSON structure.")
+        return
 
     cap = cv2.VideoCapture(video_path)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    for item in feedback_data:
+    for item in feedback_data["AnalysisResults"]:
         if "range" not in item:
             continue
 
@@ -899,20 +901,18 @@ def generate_feedback_overlay_images(
         cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
         success, frame = cap.read()
         if not success:
-            print(f"❌ Frame {target_frame} capture failed")
+            #print(f"❌ Frame {target_frame} capture failed")
             continue
         h, w = frame.shape[:2]
 
-        # ✅ 사용자 중심 좌표 구하기
         user_center = get_user_center_from_frame(frame)
         if user_center is None:
-            print(f"❌ Failed to detect user center in Frame {target_frame}")
+            #print(f"❌ Failed to detect user center in Frame {target_frame}")
             continue
 
         user_center_x, user_center_y = user_center
         offset_x = int((1.0 - user_center_x) * w)
         offset_y = h // 2 - int(user_center_y * h)
-        #print(f"{offset_x},{offset_y}")
 
         def to_pixel_coords(x, y):
             return (int(x * w + offset_x), int(y * h + offset_y))
@@ -943,7 +943,6 @@ def generate_feedback_overlay_images(
 
         overlay = frame.copy()
 
-        # draw actual (green)
         for (i, j) in connections:
             i1 = key_joints.index(i)
             i2 = key_joints.index(j)
@@ -952,7 +951,6 @@ def generate_feedback_overlay_images(
         for pt in actual_points_pixel:
             if pt != (0,0): cv2.circle(overlay, pt, 4, (0,255,0), -1)
 
-        # draw ideal (red)
         for (i, j) in connections:
             i1 = key_joints.index(i)
             i2 = key_joints.index(j)
@@ -964,58 +962,12 @@ def generate_feedback_overlay_images(
         cv2.putText(overlay, f"Frame {target_frame}", (30, 50),
                     cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255,255,255), 2)
 
-        save_path = os.path.join(output_dir)
-        cv2.imwrite(save_path, overlay)
-        #print(f"✅ Saved: {save_path}")
+        cv2.imwrite(output_dir, overlay)
+        #print(f"✅ Saved: {output_dir}")
 
     cap.release()
 
 
-def build_gpt_prompt_from_summary(
-    feedback_data: list
-) -> str:
-    # 1. Parse metadata (assumed to be the first dictionary with "ExerciseName")
-    meta = None
-    for entry in feedback_data:
-        if "ExerciseName" in entry:
-            meta = entry
-            break
-
-    if meta is None:
-        raise ValueError("No metadata with 'ExerciseName' found in feedback_data.")
-
-    exercise_name = meta.get("ExerciseName", "Unknown Exercise")
-    exercise_description = meta.get("ExerciseDescription", "No description provided.")
-    ideal_pose_bullet_points = meta.get("IdealPose", [])
-
-    # 2. Construct prompt string with manual line breaks
-    prompt = ""
-    prompt += f"🧠 You are a movement feedback coach. The user is performing '{exercise_name}'.\n\n"
-    prompt += f"Exercise Description: {exercise_description}\n\n"
-    prompt += "Ideal Form:\n"
-    for bullet in ideal_pose_bullet_points:
-        prompt += f"• {bullet}\n"
-
-    prompt += "\nDetected Deviations:\n"
-    
-    # 3. Add deviation summaries (skip any metadata-like entries)
-    for section in feedback_data:
-        if "range" not in section or "joints" not in section:
-            continue
-        prompt += f"\n[📍 {section['range']}]\n"
-        for joint in section["joints"]:
-            prompt += f"- {joint['name']}: {joint['error_detail']}\n"
-
-    # 4. GPT instruction
-    prompt += (
-        "\n\nBased on the above, please explain in three parts:\n"
-        "1. What is incorrect with the user's form\n"
-        "2. Why this might be happening\n"
-        "3. How to correct it (include light stretches or drills if helpful)\n\n"
-        "Avoid technical jargon. Make your explanation simple and actionable for beginners.\n"
-    )
-
-    return prompt
 
 
 # 9. 메인 실행
@@ -1031,13 +983,12 @@ def main():
     temp_path = sys.argv[4]
     sub_exercise = f"{exercise_name}v2"
 
-    video_filename = os.path.splitext(os.path.basename(video_path))[0]
-    csv_path = f"{temp_path}/{video_filename}.csv"
+    csv_path = f"{temp_path}/video_filename.csv"
     os.makedirs(temp_path, exist_ok=True)
 
     extracted_csv = extract_landmarks(video_path, csv_path)
-    print(f"🔍 extract_landmarks 결과: {extracted_csv}")
-    print(f"🔍 CSV Generated: {csv_path}, Proceeding to Similarity Analysis...")
+    #print(f"🔍 extract_landmarks 결과: {extracted_csv}")
+    #print(f"🔍 CSV Generated: {csv_path}, Proceeding to Similarity Analysis...")
 
     df = load_and_process_csv(csv_path)
     if df is None or df.empty:
@@ -1053,10 +1004,16 @@ def main():
     if not segments:
         logging.error("❌ 운동 반복 구간 검출 실패.")
         return
-    print(f"🔍 검출된 운동 반복 수: {len(segments)}회")
+    #print(f"🔍 검출된 운동 반복 수: {len(segments)}회")
 
     # StepSplit 기준 데이터 로드
-    split_criteria_path = f"./data/models/StepSplit/{sub_exercise}_combined_step_split_criteria.pkl"
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    split_criteria_path = os.path.join(
+        BASE_DIR,
+        "data", "models", "StepSplit",
+        f"{sub_exercise}_combined_step_split_criteria.pkl"
+    )
+    #split_criteria_path = f"./data/models/StepSplit/{sub_exercise}_combined_step_split_criteria.pkl"
     if not os.path.exists(split_criteria_path):
         logging.error("❌ 기준 데이터 파일을 찾을 수 없습니다.")
         return
@@ -1073,7 +1030,12 @@ def main():
     ideal_phase_progress = split_criteria["phase_progress"]
 
     # 수정된 이상적 궤적 로드 (관절별로 저장)
-    ideal_trajectory_path = f"./data/models/analysistrajectory/{sub_exercise}/{sub_exercise}_ideal_trajectory.pkl"
+    ideal_trajectory_path = os.path.join(
+        BASE_DIR,
+        "data", "models", "analysistrajectory", f"{sub_exercise}",
+        f"{sub_exercise}_ideal_trajectory.pkl"
+    )
+    #ideal_trajectory_path = f"./data/models/analysistrajectory/{sub_exercise}/{sub_exercise}_ideal_trajectory.pkl"
     if not os.path.exists(ideal_trajectory_path):
         logging.error("❌ 이상적 궤적 파일을 찾을 수 없습니다.")
         return
@@ -1157,7 +1119,7 @@ def main():
     except Exception as e:
         logging.error(f"❌ 전체 평균 유사도 계산 오류: {str(e)}")
         overall_similarity = np.mean(total_similarity)
-    print(f"\n🔥 전체 평균 유사도: {overall_similarity:.2f}%")
+    #print(f"\n🔥 전체 평균 유사도: {overall_similarity:.2f}%")
 
     ideal = os.path.join(temp_path, "ideal_angles.csv")
     actual = os.path.join(temp_path, "actual_angles.csv")
@@ -1179,7 +1141,7 @@ def main():
             preview=True
         )
 
-        print("\n📏 주요 관절별 위치 비교 시작...")
+        #print("\n📏 주요 관절별 위치 비교 시작...")
         key_joints = [11,12,13,14,15,16,23,24,25,26,27,28,29,30]
         actual_points_per_frame = []
         for i in range(len(actual_landmark_df)):
@@ -1202,7 +1164,7 @@ def main():
                 dist = np.sqrt((ax - ix)**2 + (ay - iy)**2 + (az - iz)**2)
                 joint_errors[j].append(dist)
 
-        print("📊 관절별 평균 위치 오차 (단위: 거리)")
+        #print("📊 관절별 평균 위치 오차 (단위: 거리)")
         joint_labels = [
             "Left Knee", "Right Knee", "Left Elbow", "Right Elbow",
             "Left Shoulder", "Right Shoulder", "Left Hip", "Right Hip",
@@ -1210,7 +1172,7 @@ def main():
         ]
         for j in range(10):
             avg_error = np.mean(joint_errors[j])
-            print(f"{joint_labels[j]:<15}: {avg_error:.4f}")
+            #print(f"{joint_labels[j]:<15}: {avg_error:.4f}")
             
         # === 📄 프레임별 오차 CSV 저장 ===
         error_csv_path = os.path.join(temp_path, "joint_errors_by_frame.csv")
@@ -1222,10 +1184,10 @@ def main():
             frame_data.append(row)
         error_df = pd.DataFrame(frame_data)
         error_df.to_csv(error_csv_path, index=False)
-        print(f"\n📄 프레임별 관절 오차 CSV 저장 완료: {error_csv_path}")
+        #print(f"\n📄 프레임별 관절 오차 CSV 저장 완료: {error_csv_path}")
 
         # === ⚠️ 오차 큰 프레임 탐지 ===
-        print("\n⚠️ 오차가 큰 프레임 및 관절 탐지 중...")
+        #print("\n⚠️ 오차가 큰 프레임 및 관절 탐지 중...")
 
         # 관절별 평균 + 표준편차 기반 threshold 계산
         joint_thresholds = {}
@@ -1243,22 +1205,17 @@ def main():
                 if error > joint_thresholds[joint]:
                     flagged_joints.append((joint, error))
             if len(flagged_joints) >= 3:  # 동시에 3개 이상 틀렸을 때만 표시
-                print(f"- Frame {int(row['frame'])}:")
-                for joint, err in flagged_joints:
-                    print(f"   • {joint}: {err:.4f}")
+                #print(f"- Frame {int(row['frame'])}:")
                 flagged.append(idx)
 
-        print(f"\n총 {len(flagged)}개 프레임에서 오차가 큰 관절 다수 발견됨.")
+        #print(f"\n총 {len(flagged)}개 프레임에서 오차가 큰 관절 다수 발견됨.")
         session_id = "c51f71e1-749a-4f9b-9f55-xxxxxx"
         user_id = "test_user_001"
         exercise_name = "ballow"
         feedback_summary = summarize_joint_errors_for_feedback(
             error_df, joint_labels,
             actual_points_per_frame,    # ← 추가
-            ideal_points_per_frame,      # ← 추가
-            session_id,
-            user_id,
-            exercise_name
+            ideal_points_per_frame      # ← 추가
         )
         json_path = os.path.join(temp_path, "feedback_summary.json")
         with open(json_path, "w", encoding="utf-8") as f:
@@ -1267,29 +1224,6 @@ def main():
         print(json.dumps(feedback_summary))
         #print(f"\n✅ 피드백 요약 JSON 저장 완료: {json_path}")
 
-        feedback_data = [{
-            "SessionID": session_id,
-            "UserID": user_id,
-            "ExerciseName": exercise_name,
-            "ExerciseDescription": "This exercise strengthens the biceps...",
-            "IdealPose": [
-                "Keep your elbows fixed at your sides throughout the movement.",
-                "Avoid moving your shoulders; they should remain stable.",
-                "Maintain a neutral wrist position without bending.",
-                "The elbow flexion angle should range between approximately 50 and 140 degrees."
-            ]
-        }] + feedback_summary
-
-        # feedback_summary는 summarize_joint_errors_for_feedback() 결과 그대로 전달
-        prompt = build_gpt_prompt_from_summary(feedback_data)
-
-        # 파일로 저장해도 OK
-        gpt_prompt_path = os.path.join(temp_path, "gpt_prompt.json")
-        with open(gpt_prompt_path, "w", encoding="utf-8") as f:
-            json.dump({ "prompt": prompt }, f, ensure_ascii=False, indent=2)
-
-        with open(os.path.join(temp_path, "gpt_prompt.txt"), "w", encoding="utf-8") as f:
-            f.write(prompt)
 
         #print(f"✅ GPT 프롬프트 JSON 저장 완료: {gpt_prompt_path}")
         generate_feedback_overlay_images(

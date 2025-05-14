@@ -78,4 +78,4 @@ def extract_landmarks(video_path, output_csv):
     df = pd.DataFrame(rows)
     os.makedirs(os.path.dirname(output_csv), exist_ok=True)
     df.to_csv(output_csv, index=False)
-    print(f"Saved CSV to {output_csv}")
+    #print(f"Saved CSV to {output_csv}")
