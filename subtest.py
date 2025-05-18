@@ -32,17 +32,17 @@ def load_and_process_csv(csv_path):
     try:
         df = pd.read_csv(csv_path)
         if df.empty:
-            logging.error("❌ CSV 파일이 비어 있습니다.")
+            logging.error(" CSV 파일이 비어 있습니다.")
             return None
         if not all([f'landmark_{i}_x' in df.columns for i in range(33)]):
-            logging.error("❌ CSV 파일에 필수 칼럼이 없습니다.")
+            logging.error(" CSV 파일에 필수 칼럼이 없습니다.")
             return None
     except Exception as e:
-        logging.error(f"❌ CSV 파일 로딩 오류: {str(e)}")
+        logging.error(f" CSV 파일 로딩 오류: {str(e)}")
         return None
 
-    logging.info(f"✅ CSV 파일 로딩 성공: {csv_path}")
-    logging.info(f"📊 데이터프레임 정보: {df.head()}")
+    logging.info(f" CSV 파일 로딩 성공: {csv_path}")
+    logging.info(f" 데이터프레임 정보: {df.head()}")
     
     # 기존 처리 로직 그대로 유지
     rename_mapping_x = {f"joint_{i}": f"landmark_{i}_x" for i in range(33)}
@@ -233,7 +233,7 @@ def compare_phase_similarity(computed_phases, ideal_phases,
                         0.1 * acceleration_similarity +   # 가속도 유사도
                         0.1 * progress_similarity)         # 진행률 유사도
 
-#print(f"✅ 유사도: {total_similarity * 100:.2f}% (궤적 유사도: {dtw_similarity * 100:.2f}%, "
+#print(f" 유사도: {total_similarity * 100:.2f}% (궤적 유사도: {dtw_similarity * 100:.2f}%, "
 #          f"단계 정확도: {phase_accuracy * 100:.2f}%, "
 #          f"전환 정확도: {transition_accuracy * 100:.2f}%, "
 #          f"속도 유사도: {velocity_similarity * 100:.2f}%, "
@@ -251,7 +251,7 @@ def extract_first_frame_landmarks(df, segment):
     try:
         start_frame = segment[0]
         if start_frame >= len(df):
-            logging.error(f"❌ 잘못된 프레임 인덱스: {start_frame}. 데이터 프레임의 길이: {len(df)}")
+            logging.error(f" 잘못된 프레임 인덱스: {start_frame}. 데이터 프레임의 길이: {len(df)}")
             return None  # 빈 리스트 대신 None 반환
 
         # 관절 좌표 추출 (33개 모든 좌표 가져오기)
@@ -261,7 +261,7 @@ def extract_first_frame_landmarks(df, segment):
                            for i in range(33)]
 
         if not frame_landmarks:
-            logging.error(f"❌ 프레임 {start_frame}에서 관절 좌표를 추출하지 못했습니다.")
+            logging.error(f" 프레임 {start_frame}에서 관절 좌표를 추출하지 못했습니다.")
             return None
 
         # 주요 관절 각도를 계산하여 반환
@@ -282,10 +282,10 @@ def extract_first_frame_landmarks(df, segment):
             left_ankle, right_ankle
         ]
         
-        logging.info(f"✅ 주요 관절 각도 추출 성공 (프레임: {start_frame})")
+        logging.info(f" 주요 관절 각도 추출 성공 (프레임: {start_frame})")
         return key_angles
     except Exception as e:
-        logging.error(f"❌ 주요 관절 좌표 추출 오류: {str(e)}")
+        logging.error(f" 주요 관절 좌표 추출 오류: {str(e)}")
         return None
 
 
@@ -294,7 +294,7 @@ def test_generate_ideal_trajectory(first_frame_angles, ideal_angles, ideal_veloc
     초기 각도를 기반으로 이상적 궤적을 생성합니다.
     """
     if first_frame_angles is None:
-        logging.error("❌ 초기 각도 데이터가 없습니다.")
+        logging.error(" 초기 각도 데이터가 없습니다.")
         return None
 
     ideal_trajectory = [first_frame_angles]
@@ -379,7 +379,7 @@ def plot_trajectory_comparison(
     axes[3].legend()
     axes[3].grid(True)
 
-    # ✅ 5. 각도 변화량
+    #  5. 각도 변화량
     axes[4].plot(x[1:], angle_change_actual, label="Actual", color='blue')
     axes[4].plot(x[1:], angle_change_ideal, label="Ideal", color='red', linestyle='--')
     axes[4].set_title("Angle Change Rate (L2 Norm per Frame)")
@@ -389,7 +389,7 @@ def plot_trajectory_comparison(
     plt.tight_layout(rect=[0, 0.03, 1, 0.95])
     plt.savefig(save_path)
     plt.close()
-    #print(f"✅ 시각화 그래프 저장 완료: {save_path}")
+    #print(f" 시각화 그래프 저장 완료: {save_path}")
 
 def estimate_phases(joint_angles):
     """
@@ -412,14 +412,14 @@ def save_ideal_angles_to_csv(ideal_trajectory, save_path="ideal_angles.csv"):
     - 각 프레임마다 10개 각도를 저장
     """
     if not ideal_trajectory or not isinstance(ideal_trajectory, list):
-        #print("❌ 잘못된 입력입니다.")
+        #print(" 잘못된 입력입니다.")
         return
     
     df = pd.DataFrame(ideal_trajectory, columns=[
         f"angle_{i}" for i in range(len(ideal_trajectory[0]))
     ])
     df.to_csv(save_path, index=False)
-    #print(f"✅ 이상 궤적 CSV 저장 완료: {save_path}")
+    #print(f" 이상 궤적 CSV 저장 완료: {save_path}")
 
 def save_subset_landmarks_csv(input_csv_path, output_csv_path):
     """
@@ -439,7 +439,7 @@ def save_subset_landmarks_csv(input_csv_path, output_csv_path):
 
     subset_df = df[columns_to_keep]
     subset_df.to_csv(output_csv_path, index=False)
-    #print(f"✅ 주요 관절만 추출하여 저장 완료: {output_csv_path}")
+    #print(f" 주요 관절만 추출하여 저장 완료: {output_csv_path}")
 
 def draw_pose_from_points(img, points, offset_x=0, color=(0, 255, 0)):
     """
@@ -531,7 +531,7 @@ def animate_full_pose_with_ideal_overlay(actual_df, ideal_df, save_path, preview
             except:
                 actual_points[j] = (0, 0)
 
-        # 🧠 이상적 좌표 생성 (관절쌍 벡터 + 각도 기반)
+        # 이상적 좌표 생성 (관절쌍 벡터 + 각도 기반)
         angle_values = list(ideal_df.iloc[i])
         angle_idx = 0
         ideal_points = actual_points.copy()
@@ -599,8 +599,8 @@ def animate_full_pose_with_ideal_overlay(actual_df, ideal_df, save_path, preview
                 break
 
     out.release()
-    if preview:
-        cv2.destroyAllWindows()
+    #if preview:
+        #cv2.destroyAllWindows()
 
     return save_path
 
@@ -639,7 +639,7 @@ def extract_joint_angle_sequence(df, start, end):
             ]
             angle_seq.append(angles)
         except Exception as e:
-            #print(f"❌ 관절 각도 추출 실패 (프레임 {i}): {e}")
+            #print(f" 관절 각도 추출 실패 (프레임 {i}): {e}")
             continue
     return angle_seq
 
@@ -874,13 +874,13 @@ def generate_feedback_overlay_images(
     connections = [(11,13),(13,15),(12,14),(14,16),(23,25),
                    (25,27),(27,29),(24,26),(26,28),(28,30)]
 
-    # ✅ Load as dictionary
+    # Load as dictionary
     with open(feedback_json_path, "r", encoding="utf-8") as f:
         feedback_data = json.load(f)
 
-    # ✅ Ensure it's a dict and contains "AnalysisResults"
+    # Ensure it's a dict and contains "AnalysisResults"
     if not isinstance(feedback_data, dict) or "AnalysisResults" not in feedback_data:
-        #print("❌ Invalid feedback JSON structure.")
+        #print(" Invalid feedback JSON structure.")
         return
 
     cap = cv2.VideoCapture(video_path)
@@ -901,13 +901,13 @@ def generate_feedback_overlay_images(
         cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
         success, frame = cap.read()
         if not success:
-            #print(f"❌ Frame {target_frame} capture failed")
+            #print(f" Frame {target_frame} capture failed")
             continue
         h, w = frame.shape[:2]
 
         user_center = get_user_center_from_frame(frame)
         if user_center is None:
-            #print(f"❌ Failed to detect user center in Frame {target_frame}")
+            #print(f" Failed to detect user center in Frame {target_frame}")
             continue
 
         user_center_x, user_center_y = user_center
@@ -963,7 +963,7 @@ def generate_feedback_overlay_images(
                     cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255,255,255), 2)
 
         cv2.imwrite(output_dir, overlay)
-        #print(f"✅ Saved: {output_dir}")
+        #print(f"Saved: {output_dir}")
 
     cap.release()
 
@@ -987,35 +987,35 @@ def main():
     os.makedirs(temp_path, exist_ok=True)
 
     extracted_csv = extract_landmarks(video_path, csv_path)
-    #print(f"🔍 extract_landmarks 결과: {extracted_csv}")
-    #print(f"🔍 CSV Generated: {csv_path}, Proceeding to Similarity Analysis...")
+    #print(f" extract_landmarks 결과: {extracted_csv}")
+    #print(f" CSV Generated: {csv_path}, Proceeding to Similarity Analysis...")
 
     df = load_and_process_csv(csv_path)
     if df is None or df.empty:
-        logging.error("❌ CSV 파일 로딩 실패 또는 데이터가 비어 있습니다.")
+        logging.error("CSV 파일 로딩 실패 또는 데이터가 비어 있습니다.")
         return
 
     angle_features, velocity_features, acceleration_features = compute_joint_angles_with_derivatives(df)
     if angle_features.size == 0:
-        logging.error("❌ 관절 각도 데이터 추출 실패.")
+        logging.error("관절 각도 데이터 추출 실패.")
         return
 
     segments = detect_repetition_intervals(angle_features, velocity_features, acceleration_features)
     if not segments:
-        logging.error("❌ 운동 반복 구간 검출 실패.")
+        logging.error("운동 반복 구간 검출 실패.")
         return
-    #print(f"🔍 검출된 운동 반복 수: {len(segments)}회")
+    #print(f"검출된 운동 반복 수: {len(segments)}회")
 
     # StepSplit 기준 데이터 로드
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     split_criteria_path = os.path.join(
         BASE_DIR,
         "data", "models", "StepSplit",
-        f"{sub_exercise}_combined_step_split_criteria.pkl"
+        f"{exercise_name}_combined_step_split_criteria.pkl"
     )
     #split_criteria_path = f"./data/models/StepSplit/{sub_exercise}_combined_step_split_criteria.pkl"
     if not os.path.exists(split_criteria_path):
-        logging.error("❌ 기준 데이터 파일을 찾을 수 없습니다.")
+        logging.error("기준 데이터 파일을 찾을 수 없습니다.")
         return
 
     with open(split_criteria_path, "rb") as f:
@@ -1032,12 +1032,12 @@ def main():
     # 수정된 이상적 궤적 로드 (관절별로 저장)
     ideal_trajectory_path = os.path.join(
         BASE_DIR,
-        "data", "models", "analysistrajectory", f"{sub_exercise}",
-        f"{sub_exercise}_ideal_trajectory.pkl"
+        "data", "models", "analysistrajectory", f"{exercise_name}",
+        f"{exercise_name}_ideal_trajectory.pkl"
     )
     #ideal_trajectory_path = f"./data/models/analysistrajectory/{sub_exercise}/{sub_exercise}_ideal_trajectory.pkl"
     if not os.path.exists(ideal_trajectory_path):
-        logging.error("❌ 이상적 궤적 파일을 찾을 수 없습니다.")
+        logging.error("이상적 궤적 파일을 찾을 수 없습니다.")
         return
 
     with open(ideal_trajectory_path, "rb") as f:
@@ -1100,7 +1100,7 @@ def main():
             total_similarity.append(similarity)
 
         except Exception as e:
-            logging.error(f"❌ 유사도 계산 오류: {str(e)}")
+            logging.error(f"유사도 계산 오류: {str(e)}")
             total_similarity.append(0)
 
         output_path = os.path.join(temp_path, f"babellow_trajectory_{i+1}.png")
@@ -1117,7 +1117,7 @@ def main():
             weights=[(end - start) for start, end in segments]
         )
     except Exception as e:
-        logging.error(f"❌ 전체 평균 유사도 계산 오류: {str(e)}")
+        logging.error(f"전체 평균 유사도 계산 오류: {str(e)}")
         overall_similarity = np.mean(total_similarity)
     #print(f"\n🔥 전체 평균 유사도: {overall_similarity:.2f}%")
 
@@ -1141,7 +1141,7 @@ def main():
             preview=True
         )
 
-        #print("\n📏 주요 관절별 위치 비교 시작...")
+        #print("\n 주요 관절별 위치 비교 시작...")
         key_joints = [11,12,13,14,15,16,23,24,25,26,27,28,29,30]
         actual_points_per_frame = []
         for i in range(len(actual_landmark_df)):
@@ -1164,7 +1164,7 @@ def main():
                 dist = np.sqrt((ax - ix)**2 + (ay - iy)**2 + (az - iz)**2)
                 joint_errors[j].append(dist)
 
-        #print("📊 관절별 평균 위치 오차 (단위: 거리)")
+        #print("관절별 평균 위치 오차 (단위: 거리)")
         joint_labels = [
             "Left Knee", "Right Knee", "Left Elbow", "Right Elbow",
             "Left Shoulder", "Right Shoulder", "Left Hip", "Right Hip",
@@ -1174,7 +1174,7 @@ def main():
             avg_error = np.mean(joint_errors[j])
             #print(f"{joint_labels[j]:<15}: {avg_error:.4f}")
             
-        # === 📄 프레임별 오차 CSV 저장 ===
+        # === 프레임별 오차 CSV 저장 ===
         error_csv_path = os.path.join(temp_path, "joint_errors_by_frame.csv")
         frame_data = []
         for f in range(len(joint_errors[0])):
@@ -1184,10 +1184,10 @@ def main():
             frame_data.append(row)
         error_df = pd.DataFrame(frame_data)
         error_df.to_csv(error_csv_path, index=False)
-        #print(f"\n📄 프레임별 관절 오차 CSV 저장 완료: {error_csv_path}")
+        #print(f"\n프레임별 관절 오차 CSV 저장 완료: {error_csv_path}")
 
-        # === ⚠️ 오차 큰 프레임 탐지 ===
-        #print("\n⚠️ 오차가 큰 프레임 및 관절 탐지 중...")
+        # === 오차 큰 프레임 탐지 ===
+        #print("\n오차가 큰 프레임 및 관절 탐지 중...")
 
         # 관절별 평균 + 표준편차 기반 threshold 계산
         joint_thresholds = {}
@@ -1222,10 +1222,10 @@ def main():
             json.dump(feedback_summary, f, ensure_ascii=False, indent=2)
 
         print(json.dumps(feedback_summary))
-        #print(f"\n✅ 피드백 요약 JSON 저장 완료: {json_path}")
+        #print(f"\n피드백 요약 JSON 저장 완료: {json_path}")
 
 
-        #print(f"✅ GPT 프롬프트 JSON 저장 완료: {gpt_prompt_path}")
+        #print(f"GPT 프롬프트 JSON 저장 완료: {gpt_prompt_path}")
         generate_feedback_overlay_images(
             video_path=video_path,
             feedback_json_path=f"{temp_path}/feedback_summary.json",
