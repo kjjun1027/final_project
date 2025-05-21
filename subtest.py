@@ -867,105 +867,119 @@ def generate_feedback_overlay_images(
     feedback_json_path: str,
     actual_df: pd.DataFrame,
     ideal_df: pd.DataFrame,
-    output_dir: str
+    output_dir: str  # ← 파일명까지 포함된 경로
 ):
-
     key_joints = [11,12,13,14,15,16,23,24,25,26,27,28,29,30]
-    connections = [(11,13),(13,15),(12,14),(14,16),(23,25),
-                   (25,27),(27,29),(24,26),(26,28),(28,30)]
+    connections = [(11,13),(13,15),(12,14),(14,16),
+                   (23,25),(25,27),(27,29),(24,26),(26,28),(28,30)]
 
-    # Load as dictionary
     with open(feedback_json_path, "r", encoding="utf-8") as f:
         feedback_data = json.load(f)
 
-    # Ensure it's a dict and contains "AnalysisResults"
     if not isinstance(feedback_data, dict) or "AnalysisResults" not in feedback_data:
-        #print(" Invalid feedback JSON structure.")
+        return
+
+    longest_item = None
+    max_length = 0
+    for item in feedback_data["AnalysisResults"]:
+        if "range" not in item:
+            continue
+        try:
+            start, end = map(int, item["range"].replace("Frame ", "").split("~"))
+            length = end - start + 1
+            if length > max_length:
+                max_length = length
+                longest_item = item
+        except:
+            continue
+
+    if not longest_item:
         return
 
     cap = cv2.VideoCapture(video_path)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    for item in feedback_data["AnalysisResults"]:
-        if "range" not in item:
-            continue
+    start, end = map(int, longest_item["range"].replace("Frame ", "").split("~"))
+    target_frame = (start + end) // 2
+    if target_frame >= total_frames:
+        cap.release()
+        return
 
-        start, end = map(int, item["range"].replace("Frame ", "").split("~"))
-        if (end - start + 1) < 20:
-            continue
+    cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+    success, frame = cap.read()
+    if not success:
+        cap.release()
+        return
 
-        target_frame = (start + end) // 2
-        if target_frame >= total_frames:
-            continue
+    h, w = frame.shape[:2]
 
-        cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
-        success, frame = cap.read()
-        if not success:
-            #print(f" Frame {target_frame} capture failed")
-            continue
-        h, w = frame.shape[:2]
+    user_center = get_user_center_from_frame(frame)
+    if user_center is None:
+        cap.release()
+        return
 
-        user_center = get_user_center_from_frame(frame)
-        if user_center is None:
-            #print(f" Failed to detect user center in Frame {target_frame}")
-            continue
+    # 사용자 중심 픽셀 좌표 기준으로 offset 계산
+    user_center_x, user_center_y= user_center
+    offset_x = int((user_center_x) * w)
+    offset_y = int(user_center_y * h)
 
-        user_center_x, user_center_y = user_center
-        offset_x = int((1.0 - user_center_x) * w)
-        offset_y = h // 2 - int(user_center_y * h)
+    
 
-        def to_pixel_coords(x, y):
-            return (int(x * w + offset_x), int(y * h + offset_y))
+    # 좌표 변환 함수 수정 (사용자 중심 기준으로 상대 위치 계산)
+    def to_pixel_coords(x, y):
+        return (int(x * w) + offset_x, int(y * h) + offset_y)
 
-        actual_points = []
-        ideal_points = []
+    actual_points = []
+    ideal_points = []
 
-        for i, j in enumerate(key_joints):
-            try:
-                ax = actual_df.loc[target_frame, f"landmark_{j}_x"]
-                ay = actual_df.loc[target_frame, f"landmark_{j}_y"]
-                actual_points.append((ax, ay))
-            except:
-                actual_points.append((0, 0))
+    for i, j in enumerate(key_joints):
+        try:
+            ax = actual_df.loc[target_frame, f"landmark_{j}_x"]
+            ay = actual_df.loc[target_frame, f"landmark_{j}_y"]
+            actual_points.append((ax, ay))
+        except:
+            actual_points.append((0, 0))
 
-            try:
-                angle = ideal_df.iloc[target_frame, i]
-                dx = 0.05 if j % 2 == 0 else -0.05
-                dy = -0.05
-                ix = ax + dx * (angle / 180)
-                iy = ay + dy * (angle / 180)
-                ideal_points.append((ix, iy))
-            except:
-                ideal_points.append((0, 0))
+        try:
+            angle = ideal_df.iloc[target_frame, i]
+            dx = 0.05 if j % 2 == 0 else -0.05
+            dy = -0.05
+            ix = ax + dx * (angle / 180)
+            iy = ay + dy * (angle / 180)
+            ideal_points.append((ix, iy))
+        except:
+            ideal_points.append((0, 0))
 
-        actual_points_pixel = [to_pixel_coords(x, y) for (x, y) in actual_points]
-        ideal_points_pixel = [to_pixel_coords(x, y) for (x, y) in ideal_points]
+    actual_points_pixel = [to_pixel_coords(x, y) for (x, y) in actual_points]
+    ideal_points_pixel = [to_pixel_coords(x, y) for (x, y) in ideal_points]
 
-        overlay = frame.copy()
+    overlay = frame.copy()
 
-        for (i, j) in connections:
-            i1 = key_joints.index(i)
-            i2 = key_joints.index(j)
-            if actual_points[i1] != (0,0) and actual_points[i2] != (0,0):
-                cv2.line(overlay, actual_points_pixel[i1], actual_points_pixel[i2], (0,255,0), 2)
-        for pt in actual_points_pixel:
-            if pt != (0,0): cv2.circle(overlay, pt, 4, (0,255,0), -1)
+    for (i, j) in connections:
+        i1 = key_joints.index(i)
+        i2 = key_joints.index(j)
+        if actual_points[i1] != (0,0) and actual_points[i2] != (0,0):
+            cv2.line(overlay, actual_points_pixel[i1], actual_points_pixel[i2], (0,255,0), 2)
+    for pt in actual_points_pixel:
+        if pt != (0,0): cv2.circle(overlay, pt, 4, (0,255,0), -1)
 
-        for (i, j) in connections:
-            i1 = key_joints.index(i)
-            i2 = key_joints.index(j)
-            if ideal_points[i1] != (0,0) and ideal_points[i2] != (0,0):
-                cv2.line(overlay, ideal_points_pixel[i1], ideal_points_pixel[i2], (0,0,255), 2)
-        for pt in ideal_points_pixel:
-            if pt != (0,0): cv2.circle(overlay, pt, 4, (0,0,255), -1)
+    for (i, j) in connections:
+        i1 = key_joints.index(i)
+        i2 = key_joints.index(j)
+        if ideal_points[i1] != (0,0) and ideal_points[i2] != (0,0):
+            cv2.line(overlay, ideal_points_pixel[i1], ideal_points_pixel[i2], (0,0,255), 2)
+    for pt in ideal_points_pixel:
+        if pt != (0,0): cv2.circle(overlay, pt, 4, (0,0,255), -1)
 
-        cv2.putText(overlay, f"Frame {target_frame}", (30, 50),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255,255,255), 2)
+    cv2.putText(overlay, f"Frame {target_frame}", (30, 50),
+                cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255,255,255), 2)
 
-        cv2.imwrite(output_dir, overlay)
-        #print(f"Saved: {output_dir}")
+    # ✅ 저장 (파일 이름 포함된 경로)
+    cv2.imwrite(output_dir, overlay)
+    #print(f"Saved: {output_dir}")
 
     cap.release()
+
 
 
 
@@ -974,7 +988,7 @@ def generate_feedback_overlay_images(
 def main():
 
     if len(sys.argv) != 5:
-        print("❗사용법: python analysis.py [영상경로] [출력이미지경로] [운동이름] [임시파일일]")
+        print("사용법: python analysis.py [영상경로] [출력이미지경로] [운동이름] [임시파일일]")
         sys.exit(1)
 
     video_path = sys.argv[1]
@@ -1138,7 +1152,7 @@ def main():
             actual_df=actual_landmark_df,
             ideal_df=pd.read_csv(ideal),
             save_path=save_video_path,
-            preview=True
+            preview=False
         )
 
         #print("\n 주요 관절별 위치 비교 시작...")
