@@ -692,7 +692,7 @@ def interpolate_trajectory_by_phase_progress(trajectory, phase_progress, target_
 # 8. 프롬프트 생성
 
 # === 위치 기반 오차 분석 (실제 방향 기반) ===
-def compute_projected_ideal_points_realistic(actual_df, ideal_df):
+def compute_projected_ideal_points_realistic(actual_df, ideal_df, length_scale_factor=1.2):
     key_joints = [11,12,13,14,15,16,23,24,25,26,27,28,29,30]
     pair_indices = [
         (13, 15), (14, 16),  # 팔꿈치
@@ -716,6 +716,10 @@ def compute_projected_ideal_points_realistic(actual_df, ideal_df):
             except:
                 actual_points[j] = np.array([0, 0, 0])
 
+        shoulder = actual_points[11]
+        hip = actual_points[23]
+        scale = np.linalg.norm(shoulder - hip)
+
         angles = ideal_df.iloc[i].values
         ideal_frame_points = {}
 
@@ -728,7 +732,7 @@ def compute_projected_ideal_points_realistic(actual_df, ideal_df):
                 direction = np.array([1, 0, 0])
             else:
                 direction /= norm
-            magnitude = angles[idx] / 180.0 * 0.1
+            magnitude = (angles[idx] / 180.0) * scale * length_scale_factor
             new_point = base + direction * magnitude
             ideal_frame_points[j2] = tuple(new_point)
 
@@ -923,8 +927,6 @@ def generate_feedback_overlay_images(
     offset_x = int((user_center_x) * w)
     offset_y = int(user_center_y * h)
 
-    
-
     # 좌표 변환 함수 수정 (사용자 중심 기준으로 상대 위치 계산)
     def to_pixel_coords(x, y):
         return (int(x * w) + offset_x, int(y * h) + offset_y)
@@ -976,7 +978,7 @@ def generate_feedback_overlay_images(
 
     # ✅ 저장 (파일 이름 포함된 경로)
     cv2.imwrite(output_dir, overlay)
-    #print(f"Saved: {output_dir}")
+    print(f"Saved: {output_dir}")
 
     cap.release()
 
