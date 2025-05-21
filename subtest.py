@@ -843,35 +843,21 @@ def summarize_joint_errors_for_feedback(
 
     return {"AnalysisResults": results_list}
 
-def get_user_center_from_frame(frame: np.ndarray) -> tuple:
-    """
-    Extracts the user's pelvis center from a frame using MediaPipe Pose.
-    Returns (x, y) normalized coordinates or None if detection fails.
-    """
+def get_actual_landmarks_from_frame(frame: np.ndarray, key_joints: list) -> dict:
     mp_pose = mp.solutions.pose
     with mp_pose.Pose(static_image_mode=True) as pose:
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = pose.process(rgb_frame)
-
+        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = pose.process(rgb)
         if not results.pose_landmarks:
             return None
-
-        landmarks = results.pose_landmarks.landmark
-        if len(landmarks) < 25:
-            return None
-
-        # landmarks 23: left_hip, 24: right_hip
-        center_x = (landmarks[23].x + landmarks[24].x) / 2
-        center_y = (landmarks[23].y + landmarks[24].y) / 2
-
-        return (center_x, center_y)
+        lm = results.pose_landmarks.landmark
+        return {j: (lm[j].x, lm[j].y) for j in key_joints}
 
 def generate_feedback_overlay_images(
     video_path: str,
     feedback_json_path: str,
-    actual_df: pd.DataFrame,
     ideal_df: pd.DataFrame,
-    output_dir: str  # ← 파일명까지 포함된 경로
+    output_dir: str  # ← PNG 저장 경로
 ):
     key_joints = [11,12,13,14,15,16,23,24,25,26,27,28,29,30]
     connections = [(11,13),(13,15),(12,14),(14,16),
@@ -879,10 +865,10 @@ def generate_feedback_overlay_images(
 
     with open(feedback_json_path, "r", encoding="utf-8") as f:
         feedback_data = json.load(f)
-
     if not isinstance(feedback_data, dict) or "AnalysisResults" not in feedback_data:
         return
 
+    # 가장 긴 구간 선택
     longest_item = None
     max_length = 0
     for item in feedback_data["AnalysisResults"]:
@@ -900,86 +886,75 @@ def generate_feedback_overlay_images(
     if not longest_item:
         return
 
-    cap = cv2.VideoCapture(video_path)
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-
     start, end = map(int, longest_item["range"].replace("Frame ", "").split("~"))
     target_frame = (start + end) // 2
-    if target_frame >= total_frames:
-        cap.release()
-        return
 
+    cap = cv2.VideoCapture(video_path)
     cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
     success, frame = cap.read()
     if not success:
         cap.release()
         return
-
     h, w = frame.shape[:2]
 
-    user_center = get_user_center_from_frame(frame)
-    if user_center is None:
+    # ✅ MediaPipe로 실제 관절 추출
+    actual_landmarks = get_actual_landmarks_from_frame(frame, key_joints)
+    if actual_landmarks is None:
         cap.release()
         return
 
-    # 사용자 중심 픽셀 좌표 기준으로 offset 계산
-    user_center_x, user_center_y= user_center
-    offset_x = int((user_center_x) * w)
-    offset_y = int(user_center_y * h)
+    # ✅ 실제 관절 좌표 (픽셀 좌표)
+    actual_points = [ 
+        (int(actual_landmarks[j][0]*w), int(actual_landmarks[j][1]*h)) 
+        if j in actual_landmarks else (0,0) 
+        for j in key_joints 
+    ]
 
-    # 좌표 변환 함수 수정 (사용자 중심 기준으로 상대 위치 계산)
-    def to_pixel_coords(x, y):
-        return (int(x * w) + offset_x, int(y * h) + offset_y)
-
-    actual_points = []
+    # ✅ 이상적 궤적 생성
     ideal_points = []
-
     for i, j in enumerate(key_joints):
+        if j not in actual_landmarks:
+            ideal_points.append((0, 0))
+            continue
+        ax, ay = actual_landmarks[j]
         try:
-            ax = actual_df.loc[target_frame, f"landmark_{j}_x"]
-            ay = actual_df.loc[target_frame, f"landmark_{j}_y"]
-            actual_points.append((ax, ay))
-        except:
-            actual_points.append((0, 0))
-
-        try:
+            if i >= len(ideal_df.columns):
+                ideal_points.append((0, 0))
+                continue
             angle = ideal_df.iloc[target_frame, i]
             dx = 0.05 if j % 2 == 0 else -0.05
             dy = -0.05
             ix = ax + dx * (angle / 180)
             iy = ay + dy * (angle / 180)
-            ideal_points.append((ix, iy))
+            ideal_points.append((int(ix * w), int(iy * h)))
         except:
             ideal_points.append((0, 0))
 
-    actual_points_pixel = [to_pixel_coords(x, y) for (x, y) in actual_points]
-    ideal_points_pixel = [to_pixel_coords(x, y) for (x, y) in ideal_points]
-
+    # ✅ 시각화
     overlay = frame.copy()
 
     for (i, j) in connections:
         i1 = key_joints.index(i)
         i2 = key_joints.index(j)
         if actual_points[i1] != (0,0) and actual_points[i2] != (0,0):
-            cv2.line(overlay, actual_points_pixel[i1], actual_points_pixel[i2], (0,255,0), 2)
-    for pt in actual_points_pixel:
+            cv2.line(overlay, actual_points[i1], actual_points[i2], (0,255,0), 2)
+    for pt in actual_points:
         if pt != (0,0): cv2.circle(overlay, pt, 4, (0,255,0), -1)
 
     for (i, j) in connections:
         i1 = key_joints.index(i)
         i2 = key_joints.index(j)
         if ideal_points[i1] != (0,0) and ideal_points[i2] != (0,0):
-            cv2.line(overlay, ideal_points_pixel[i1], ideal_points_pixel[i2], (0,0,255), 2)
-    for pt in ideal_points_pixel:
+            cv2.line(overlay, ideal_points[i1], ideal_points[i2], (0,0,255), 2)
+    for pt in ideal_points:
         if pt != (0,0): cv2.circle(overlay, pt, 4, (0,0,255), -1)
 
     cv2.putText(overlay, f"Frame {target_frame}", (30, 50),
                 cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255,255,255), 2)
 
-    # ✅ 저장 (파일 이름 포함된 경로)
     cv2.imwrite(output_dir, overlay)
-    print(f"Saved: {output_dir}")
-
+    print(f"✅ Saved: {output_dir}")
+    
     cap.release()
 
 
@@ -1245,7 +1220,7 @@ def main():
         generate_feedback_overlay_images(
             video_path=video_path,
             feedback_json_path=f"{temp_path}/feedback_summary.json",
-            actual_df=actual_landmark_df,
+            #actual_df=actual_landmark_df,
             ideal_df=ideal_angles_df,
             output_dir=output_dir
         )
