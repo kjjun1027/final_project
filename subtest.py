@@ -857,18 +857,25 @@ def generate_feedback_overlay_images(
     video_path: str,
     feedback_json_path: str,
     ideal_df: pd.DataFrame,
-    output_dir: str  # ← PNG 저장 경로
+    output_dir: str  # PNG 저장 경로 포함
 ):
     key_joints = [11,12,13,14,15,16,23,24,25,26,27,28,29,30]
     connections = [(11,13),(13,15),(12,14),(14,16),
                    (23,25),(25,27),(27,29),(24,26),(26,28),(28,30)]
 
+    # 관절쌍 기반 각도 계산 기준 (ideal_df에 대응되는 순서)
+    angle_pairs = [
+        (13, 15), (14, 16), (11, 13), (12, 14),
+        (23, 25), (24, 26), (25, 27), (26, 28),
+        (27, 29), (28, 30)
+    ]
+
+    # Feedback 데이터 로드 및 가장 긴 피드백 구간 선택
     with open(feedback_json_path, "r", encoding="utf-8") as f:
         feedback_data = json.load(f)
     if not isinstance(feedback_data, dict) or "AnalysisResults" not in feedback_data:
         return
 
-    # 가장 긴 구간 선택
     longest_item = None
     max_length = 0
     for item in feedback_data["AnalysisResults"]:
@@ -889,77 +896,77 @@ def generate_feedback_overlay_images(
     start, end = map(int, longest_item["range"].replace("Frame ", "").split("~"))
     target_frame = (start + end) // 2
 
+    # 캡처 프레임 추출
     cap = cv2.VideoCapture(video_path)
     cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
     success, frame = cap.read()
+    cap.release()
     if not success:
-        cap.release()
         return
     h, w = frame.shape[:2]
 
-    # ✅ MediaPipe로 실제 관절 추출
+    # 실제 관절 추출
     actual_landmarks = get_actual_landmarks_from_frame(frame, key_joints)
     if actual_landmarks is None:
-        cap.release()
         return
 
-    # ✅ 실제 관절 좌표 (픽셀 좌표)
-    actual_points = [ 
-        (int(actual_landmarks[j][0]*w), int(actual_landmarks[j][1]*h)) 
-        if j in actual_landmarks else (0,0) 
-        for j in key_joints 
+    # 실제 관절 픽셀 좌표
+    actual_points = [
+        (int(actual_landmarks[j][0] * w), int(actual_landmarks[j][1] * h))
+        if j in actual_landmarks else (0, 0)
+        for j in key_joints
     ]
 
-    # ✅ 이상적 궤적 생성
-    ideal_points = []
-    for i, j in enumerate(key_joints):
-        if j not in actual_landmarks:
-            ideal_points.append((0, 0))
+    # 이상 관절 생성
+    ideal_points_map = {}
+    for idx, (j1, j2) in enumerate(angle_pairs):
+        if j1 not in actual_landmarks or j2 not in actual_landmarks:
             continue
-        ax, ay = actual_landmarks[j]
-        try:
-            if i >= len(ideal_df.columns):
-                ideal_points.append((0, 0))
-                continue
-            angle = ideal_df.iloc[target_frame, i]
-            dx = 0.05 if j % 2 == 0 else -0.05
-            dy = -0.05
-            ix = ax + dx * (angle / 180)
-            iy = ay + dy * (angle / 180)
-            ideal_points.append((int(ix * w), int(iy * h)))
-        except:
-            ideal_points.append((0, 0))
+        p1 = np.array(actual_landmarks[j1])
+        p2 = np.array(actual_landmarks[j2])
+        direction = p2 - p1
+        norm = np.linalg.norm(direction)
+        if norm == 0:
+            direction = np.array([1.0, 0.0])
+        else:
+            direction /= norm
+        angle = ideal_df.iloc[target_frame, idx] if idx < len(ideal_df.columns) else 0
+        magnitude = (angle / 180.0) * 0.12  # 길이 조절 파라미터
+        projected = p1 + direction * magnitude
+        ideal_points_map[j2] = (int(projected[0] * w), int(projected[1] * h))
 
-    # ✅ 시각화
+    # 이상 포인트 매핑
+    ideal_points = [
+        ideal_points_map[j] if j in ideal_points_map else (0, 0)
+        for j in key_joints
+    ]
+
+    # 시각화
     overlay = frame.copy()
 
     for (i, j) in connections:
-        i1 = key_joints.index(i)
-        i2 = key_joints.index(j)
-        if actual_points[i1] != (0,0) and actual_points[i2] != (0,0):
+        i1, i2 = key_joints.index(i), key_joints.index(j)
+        if actual_points[i1] != (0, 0) and actual_points[i2] != (0, 0):
             cv2.line(overlay, actual_points[i1], actual_points[i2], (0,255,0), 2)
     for pt in actual_points:
-        if pt != (0,0): cv2.circle(overlay, pt, 4, (0,255,0), -1)
+        if pt != (0, 0):
+            cv2.circle(overlay, pt, 4, (0,255,0), -1)
 
     for (i, j) in connections:
-        i1 = key_joints.index(i)
-        i2 = key_joints.index(j)
-        if ideal_points[i1] != (0,0) and ideal_points[i2] != (0,0):
+        i1, i2 = key_joints.index(i), key_joints.index(j)
+        if ideal_points[i1] != (0, 0) and ideal_points[i2] != (0, 0):
             cv2.line(overlay, ideal_points[i1], ideal_points[i2], (0,0,255), 2)
     for pt in ideal_points:
-        if pt != (0,0): cv2.circle(overlay, pt, 4, (0,0,255), -1)
+        if pt != (0, 0):
+            cv2.circle(overlay, pt, 4, (0,0,255), -1)
 
     cv2.putText(overlay, f"Frame {target_frame}", (30, 50),
                 cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255,255,255), 2)
 
     cv2.imwrite(output_dir, overlay)
     print(f"✅ Saved: {output_dir}")
-    
+
     cap.release()
-
-
-
-
 
 # 9. 메인 실행
 def main():
