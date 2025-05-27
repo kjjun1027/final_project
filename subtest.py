@@ -930,9 +930,16 @@ def generate_feedback_overlay_images(
             direction = np.array([1.0, 0.0])
         else:
             direction /= norm
+
         angle = ideal_df.iloc[target_frame, idx] if idx < len(ideal_df.columns) else 0
-        magnitude = (angle / 180.0) * 0.12  # 길이 조절 파라미터
-        projected = p1 + direction * magnitude
+        magnitude = (angle / 180.0) * 0.12  # 기본 길이
+
+        # 📌 추가: 이상 궤적을 실제보다 살짝 "비틀기"
+        random_offset = np.random.uniform(-0.02, 0.02, size=2)  # 2% 정도 랜덤 오프셋
+
+        # 최종 이상 좌표 계산
+        projected = p1 + direction * (magnitude + random_offset[0]) 
+
         ideal_points_map[j2] = (int(projected[0] * w), int(projected[1] * h))
 
     # 이상 포인트 매핑
