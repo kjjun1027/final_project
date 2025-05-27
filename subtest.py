@@ -790,13 +790,13 @@ def summarize_joint_errors_for_feedback(
     def format_error_detail(avg_error, direction_str):
         if direction_str == "minor deviation":
             return "No significant deviation detected."
-        if avg_error < 0.02:
+        if avg_error < 0.1:
             level = "slightly"
-        elif avg_error < 0.05:
+        elif avg_error < 0.25:
             level = "a bit"
-        elif avg_error < 0.1:
+        elif avg_error < 0.45:
             level = "moderately"
-        elif avg_error < 0.2:
+        elif avg_error < 0.6:
             level = "significantly"
         else:
             level = "severely"
