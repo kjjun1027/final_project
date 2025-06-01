@@ -4,6 +4,7 @@ import pandas as pd
 import pickle
 import cv2
 import logging
+import imageio
 import sys
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks, savgol_filter
@@ -869,6 +870,7 @@ def generate_feedback_overlay_images(
         (23, 25), (24, 26), (25, 27), (26, 28),
         (27, 29), (28, 30)
     ]
+    random_offset = np.random.uniform(-0.02, 0.02, size=2)
 
     # Feedback 데이터 로드 및 가장 긴 피드백 구간 선택
     with open(feedback_json_path, "r", encoding="utf-8") as f:
@@ -894,86 +896,86 @@ def generate_feedback_overlay_images(
         return
 
     start, end = map(int, longest_item["range"].replace("Frame ", "").split("~"))
-    target_frame = (start + end) // 2
+    random_offset = np.random.uniform(-0.02, 0.02, size=2)
+    frame_list = list(range(start, end + 1))
 
     # 캡처 프레임 추출
     cap = cv2.VideoCapture(video_path)
-    cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
-    success, frame = cap.read()
-    cap.release()
-    if not success:
-        return
-    h, w = frame.shape[:2]
+    h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 
-    # 실제 관절 추출
-    actual_landmarks = get_actual_landmarks_from_frame(frame, key_joints)
-    if actual_landmarks is None:
-        return
+    images = []
 
-    # 실제 관절 픽셀 좌표
-    actual_points = [
-        (int(actual_landmarks[j][0] * w), int(actual_landmarks[j][1] * h))
-        if j in actual_landmarks else (0, 0)
-        for j in key_joints
-    ]
-
-    # 이상 관절 생성
-    ideal_points_map = {}
-    for idx, (j1, j2) in enumerate(angle_pairs):
-        if j1 not in actual_landmarks or j2 not in actual_landmarks:
+    for frame_idx in frame_list:
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+        success, frame = cap.read()
+        if not success:
             continue
-        p1 = np.array(actual_landmarks[j1])
-        p2 = np.array(actual_landmarks[j2])
-        direction = p2 - p1
-        norm = np.linalg.norm(direction)
-        if norm == 0:
-            direction = np.array([1.0, 0.0])
-        else:
-            direction /= norm
 
-        angle = ideal_df.iloc[target_frame, idx] if idx < len(ideal_df.columns) else 0
-        magnitude = (angle / 180.0) * 0.12  # 기본 길이
+        actual_landmarks = get_actual_landmarks_from_frame(frame, key_joints)
+        if actual_landmarks is None:
+            continue
 
-        # 📌 추가: 이상 궤적을 실제보다 살짝 "비틀기"
-        random_offset = np.random.uniform(-0.02, 0.02, size=2)  # 2% 정도 랜덤 오프셋
+        # 실제 관절 픽셀 좌표
+        actual_points = [
+            (int(actual_landmarks[j][0] * w), int(actual_landmarks[j][1] * h))
+            if j in actual_landmarks else (0, 0)
+            for j in key_joints
+        ]
 
-        # 최종 이상 좌표 계산
-        projected = p1 + direction * (magnitude + random_offset[0]) 
+        # 이상 관절 생성
+        ideal_points_map = {}
+        for idx, (j1, j2) in enumerate(angle_pairs):
+            if j1 not in actual_landmarks or j2 not in actual_landmarks:
+                continue
+            p1 = np.array(actual_landmarks[j1])
+            p2 = np.array(actual_landmarks[j2])
+            direction = p2 - p1
+            norm = np.linalg.norm(direction)
+            if norm == 0:
+                direction = np.array([1.0, 0.0])
+            else:
+                direction /= norm
 
-        ideal_points_map[j2] = (int(projected[0] * w), int(projected[1] * h))
+            angle = ideal_df.iloc[frame_idx, idx] if idx < len(ideal_df.columns) else 0
+            magnitude = (angle / 180.0) * 0.12
+            projected = p1 + direction * (magnitude + random_offset[0])
+            ideal_points_map[j2] = (int(projected[0] * w), int(projected[1] * h))
 
-    # 이상 포인트 매핑
-    ideal_points = [
-        ideal_points_map[j] if j in ideal_points_map else (0, 0)
-        for j in key_joints
-    ]
+        ideal_points = [
+            ideal_points_map[j] if j in ideal_points_map else (0, 0)
+            for j in key_joints
+        ]
 
-    # 시각화
-    overlay = frame.copy()
+        # 시각화
+        overlay = frame.copy()
 
-    for (i, j) in connections:
-        i1, i2 = key_joints.index(i), key_joints.index(j)
-        if actual_points[i1] != (0, 0) and actual_points[i2] != (0, 0):
-            cv2.line(overlay, actual_points[i1], actual_points[i2], (0,255,0), 2)
-    for pt in actual_points:
-        if pt != (0, 0):
-            cv2.circle(overlay, pt, 4, (0,255,0), -1)
+        for (i, j) in connections:
+            i1, i2 = key_joints.index(i), key_joints.index(j)
+            if actual_points[i1] != (0, 0) and actual_points[i2] != (0, 0):
+                cv2.line(overlay, actual_points[i1], actual_points[i2], (0,255,0), 2)
+        for pt in actual_points:
+            if pt != (0, 0):
+                cv2.circle(overlay, pt, 4, (0,255,0), -1)
 
-    for (i, j) in connections:
-        i1, i2 = key_joints.index(i), key_joints.index(j)
-        if ideal_points[i1] != (0, 0) and ideal_points[i2] != (0, 0):
-            cv2.line(overlay, ideal_points[i1], ideal_points[i2], (0,0,255), 2)
-    for pt in ideal_points:
-        if pt != (0, 0):
-            cv2.circle(overlay, pt, 4, (0,0,255), -1)
+        for (i, j) in connections:
+            i1, i2 = key_joints.index(i), key_joints.index(j)
+            if ideal_points[i1] != (0, 0) and ideal_points[i2] != (0, 0):
+                cv2.line(overlay, ideal_points[i1], ideal_points[i2], (0,0,255), 2)
+        for pt in ideal_points:
+            if pt != (0, 0):
+                cv2.circle(overlay, pt, 4, (0,0,255), -1)
 
-    cv2.putText(overlay, f"Frame {target_frame}", (30, 50),
-                cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255,255,255), 2)
+        cv2.putText(overlay, f"Frame {frame_idx}", (30, 50),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255,255,255), 2)
 
-    cv2.imwrite(output_dir, overlay)
-    print(f"✅ Saved: {output_dir}")
+        overlay_rgb = cv2.cvtColor(overlay, cv2.COLOR_BGR2RGB)
+        images.append(overlay_rgb)
 
     cap.release()
+
+    imageio.mimsave(output_dir, images, duration=0.3)
+    #print(f"✅ GIF Saved: {output_dir}")
 
 # 9. 메인 실행
 def main():
